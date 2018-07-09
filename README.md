@@ -1,0 +1,1 @@
+Before attempting to run any analysis scripts or models `data/Stocks_DLB.zip` needs to be unzipped into the data folder.  The file `data/Stocks_DLB.txt` should be present before any script execution.
