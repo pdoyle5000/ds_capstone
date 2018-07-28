@@ -1,0 +1,56 @@
+---
+title: "Capstone - Data Exploration"
+author: "Patrick Doyle"
+date: "7/18/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+securities.path <- 'data/Securities_DLB.csv'
+ratings.path <- 'data/Ratings_DLB.csv'
+stocks.path <- 'data/Stocks_DLB.txt'
+litigations.path <- 'data/sca_filings_no_dollars.csv'
+```
+
+## Dolby Digital Inc.
+
+### On attempt #1: spltting the data into years, they correlate too highly.  I will instead break out each year int its own reacord.
+### price high and price low correlate too highly to use.  Just use avg closing price.
+```{r transformInputData}
+source('import_data.R')
+market.df <- import.market.data(
+  securities.path,
+  ratings.path,
+  stocks.path,
+  litigations.path)
+summary(market.df)
+```
+
+```{r exploreInputData}
+ratings.raw <- read.csv('data/Ratings_DLB.csv')
+ratings.test.df <- etl.ratings(ratings.raw)
+summary(ratings.test.df)
+```
+
+```{r stockData}
+stock.test.df <- read.csv('data/Stocks_DLB.txt', sep = '\t', header = T, fileEncoding = 'UTF-16LE')
+```
+
+```{r securitiesData}
+securities.test.df <- etl.securities(securities.raw)
+summary(securities.test.df)
+
+```
+
+```{r stockEtl}
+stocks.df <- etl.stocks(stock.test.df)
+summary(stocks.df)
+```
+
+```{r etlSca}
+sca.path <- 'data/sca_filings_no_dollars.csv'
+sca.raw <- read.csv(sca.path, sep = ',')
+a.lit.test.sca <- etl.sca(sca.raw, securities.test.df$tic)
+#addedtest.sca$search <- paste(addedtest.sca$tic, addedtest.sca$year, sep="-")
+```
