@@ -25,7 +25,7 @@ import.market.data <- function(securities.path, ratings.path, stocks.path, sca.p
   
   df.with.stocks.added <- securities.w.ratings %>% full_join(stocks.df, by=c('tic', 'year'))
   unified.df <- df.with.stocks.added %>% full_join(sca.df, by=c('tic', 'year'))
-  
+  unified.df$settlement.pct <- unified.df$settlement / (unified.df$eps * unified.df$shares.outstanding)
   # NOTE:  We may want to start with another dataframe first. Possibly the fundamentals when we have it.
   
   # remember to represent the litigation dollars as percent of company value.
@@ -173,11 +173,9 @@ add.new.sca.data <- function(sca.df) {
   return(sca.df)
 }
 
-
-# add.rating.to.securities <- function(securities.df, rating.df) {
-#   
-# }
-
+etl.fundamentals <- function(fun.df) {
+  
+}
 
 
 
