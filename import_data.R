@@ -16,19 +16,14 @@ import.market.data <- function(securities.path,
   unified.df <- join.dfs(securities.df, ratings.df, stocks.df, sca.df, fundamentals.df)
   
   unified.df$settlement.pct <- (unified.df$settlement / (unified.df$price.close * unified.df$shares.outstanding)) * 100
-  
-  # bring in fundamentals and wittle down the columns.
-  # only 41% of the companies are rated. Maybe better off as rated_good/rated_bad/unrated
-  # analysis can begin to create normality!!!
-  
-  return(unified.df)
+  return(clean.unified.data(unified.df))
 }
 
 join.dfs <- function(df1, df2, df3, df4, df5) {
   return(df1 %>% full_join(df2, by=c('tic', 'year')) %>% 
            full_join(df3, by=c('tic', 'year')) %>% 
            full_join(df4, by=c('tic', 'year')) %>%
-           full_join(df5, by=c('tic', 'year')))
+           left_join(df5, by=c('tic', 'year')))
 }
 
 etl.securities <- function(securities.df) {
@@ -176,6 +171,63 @@ etl.fundamentals <- function(raw.df) {
   colnames(fund.df)[colnames(fund.df) == 'fyear'] <- 'year'
   fund.df$tic <- as.character(fund.df$tic)
   return(fund.df)
+}
+
+clean.unified.data <- function(data.df) {
+  
+  # Filter out records with many NA's from the joining chain.
+  trimmed.market.df <- subset(data.df, !is.na(eps))
+  trimmed.market.df <- subset(trimmed.market.df, !is.na(ajex))
+  
+  # NA value handling
+  trimmed.market.df$was.litigated[is.na(trimmed.market.df$was.litigated)] <- FALSE
+  trimmed.market.df$settlement.pct[is.na(trimmed.market.df$settlement.pct)] <- FALSE
+  trimmed.market.df$settlement[is.na(trimmed.market.df$settlement)] <- 0
+  trimmed.market.df$company.rating[is.na(trimmed.market.df$company.rating)] <- trimmed.market.df$spcsrc
+  return(format.unified.data(trimmed.market.df))
+}
+
+format.unified.data <- function(unified.df) {
+  unified.df$datafmt <- NULL
+  unified.df$trade.volume <- NULL
+  unified.df$optex <- NULL
+  unified.df$lse <- NULL
+  unified.df$sstk <- NULL
+  unified.df$at <- NULL
+  unified.df$opeps <- NULL
+  unified.df$bkvlps <- NULL
+  unified.df$tlcf <- NULL
+  unified.df$txdi <- NULL
+  unified.df$xpr <- NULL
+  unified.df$cshr <- NULL
+  unified.df$nopi <- NULL
+  unified.df$optprcey <- NULL
+  unified.df$ajex <- NULL
+  unified.df$currtr <- NULL
+  unified.df$txdfo <- NULL
+  unified.df$spcsrc <- NULL
+  unified.df$exre <- NULL
+
+  colnames(unified.df)[colnames(unified.df) == 'acominc'] <- 'accu.loss'
+  colnames(unified.df)[colnames(unified.df) == 'aoloch'] <- 'liability.delta'
+  colnames(unified.df)[colnames(unified.df) == 'caps'] <- 'cap.reserve'
+  colnames(unified.df)[colnames(unified.df) == 'chech'] <- 'cash'
+  colnames(unified.df)[colnames(unified.df) == 'cstk'] <- 'common.stocks'
+  colnames(unified.df)[colnames(unified.df) == 'exere'] <- 'exchange.effect'
+  colnames(unified.df)[colnames(unified.df) == 'fiao'] <- 'finance.other'
+  colnames(unified.df)[colnames(unified.df) == 'fincf'] <- 'finance.cash.flow'
+  colnames(unified.df)[colnames(unified.df) == 'fopo'] <- 'other.funds'
+  colnames(unified.df)[colnames(unified.df) == 'invch'] <- 'inventory.diff'
+  colnames(unified.df)[colnames(unified.df) == 'ivaco'] <- 'investing.other'
+  colnames(unified.df)[colnames(unified.df) == 'optgr'] <- 'options.granted'
+  colnames(unified.df)[colnames(unified.df) == 'optrfr'] <- 'risk.free.rate'
+  colnames(unified.df)[colnames(unified.df) == 'optvol'] <- 'assumed.volatility'
+  colnames(unified.df)[colnames(unified.df) == 're'] <- 'retained.earnings'
+  colnames(unified.df)[colnames(unified.df) == 'recch'] <- 'ar.diff'
+  colnames(unified.df)[colnames(unified.df) == 'sppiv'] <- 'sale.investments'
+  colnames(unified.df)[colnames(unified.df) == 'txdba'] <- 'long.tax.asset'
+  colnames(unified.df)[colnames(unified.df) == 'txndb'] <- 'net.tax.liability'
+  return(unified.df)
 }
 
 remove.meaningless.data <- function(fun.df) {
@@ -426,9 +478,3 @@ remove.meaningless.data <- function(fun.df) {
   
   return(fun.df)
 }
-
-
-
-
-
-

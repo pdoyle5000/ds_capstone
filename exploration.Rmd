@@ -27,71 +27,38 @@ market.df <- import.market.data(
   litigations.path,
   fundamentals.path)
 summary(market.df)
+
+colSums(trimmed.market.df == 0)
+# ---- Correlation Analysis on Final DF and rename columns ------
+market.corr <- cor(trimmed.market.df[,2:29])
+market.corr <- as.data.frame(as.table(market.corr))
+high.corr.market.df <- subset(market.corr, Freq > 0.5 | Freq < -0.5)
+
+
+
+# --- Projection Trends and Visualizations for Litigation Amount -----
+# --- Chance of being litigated and correlating factors. -----
 ```
 
-```{r exploreInputData}
-ratings.raw <- read.csv('data/Ratings_DLB.csv')
-ratings.test.df <- etl.ratings(ratings.raw)
-summary(ratings.test.df)
-```
 
-```{r stockData}
-stock.test.df <- read.csv('data/Stocks_DLB.txt', sep = '\t', header = T, fileEncoding = 'UTF-16LE')
-```
+```{r univariateAnalysis}
+# normalize and visualize the fields independently here.
 
-```{r securitiesData}
-securities.test.df <- etl.securities(securities.raw)
-summary(securities.test.df)
-
-```
-
-```{r stockEtl}
-stocks.df <- etl.stocks(stock.test.df)
-summary(stocks.df)
-```
-
-```{r etlSca}
-sca.path <- 'data/sca_filings_no_dollars.csv'
-sca.raw <- read.csv(sca.path, sep = ',')
-a.lit.test.sca <- etl.sca(sca.raw, securities.test.df$tic)
-```
-
-```{r fundamentals}
-raw.df <- read.csv('data/cleaned_fundamentals.csv', sep=',')
-raw.df <- subset(raw.df, datafmt == 'STD')
-raw.df <- subset(raw.df, !is.na(aco))
-na.cols <- colSums(is.na(raw.df))
-total.rows <- nrow(raw.df)
-threshold <- total.rows * .05
-na.cols[na.cols < threshold]
-
-# The data set is now down to 310 attributes.
-# Let's make all NA's 0 and start looking for correlations.
-# first change quality ranking to num.
-raw.df$spcsrc <- determine.rating.score(raw.df$spcsrc)
-
-ncol(raw.df)
-# Lets look at NA and correlation for the first 30 attributes
-first.thirty.df <- raw.df[,5:274]
-# ano, aol2, aqpl1, aul3 have higher NAs
-first.thirty.df[is.na(first.thirty.df)] <- 0
-first.thirty.df <- remove.meaningless.data(first.thirty.df)
-cor.mat <- cor(first.thirty.df)
-cor.df <- as.data.frame(as.table(cor.mat))
-cut.cor.df <- subset(cor.df, Freq > 0.64 | Freq < -0.64)
-
-colSums(first.thirty.df == 0)
 
 ```
 
 
+```{r exploreSettlements}
+
+# Create charts that look at settlement amounts as functions of other things here
+
+```
 
 
+```{r simpleLitigationModeling}
+# Attempt leave-one-out or lasso modeling on classification (possibly SVM!) of was.litigated
 
-
-
-
-
+```
 
 
 
