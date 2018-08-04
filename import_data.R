@@ -213,7 +213,6 @@ format.unified.data <- function(unified.df) {
   colnames(unified.df)[colnames(unified.df) == 'caps'] <- 'cap.reserve'
   colnames(unified.df)[colnames(unified.df) == 'chech'] <- 'cash'
   colnames(unified.df)[colnames(unified.df) == 'cstk'] <- 'common.stocks'
-  colnames(unified.df)[colnames(unified.df) == 'exere'] <- 'exchange.effect'
   colnames(unified.df)[colnames(unified.df) == 'fiao'] <- 'finance.other'
   colnames(unified.df)[colnames(unified.df) == 'fincf'] <- 'finance.cash.flow'
   colnames(unified.df)[colnames(unified.df) == 'fopo'] <- 'other.funds'
@@ -230,6 +229,7 @@ format.unified.data <- function(unified.df) {
   return(unified.df)
 }
 
+# conver this to a returned dataframe containing only the wanted data.
 remove.meaningless.data <- function(fun.df) {
   fun.df$ceql <- NULL
   fun.df$acox <- NULL
@@ -475,6 +475,5 @@ remove.meaningless.data <- function(fun.df) {
   fun.df$wcap <- NULL
   fun.df$txtubtxtr <- NULL
   fun.df$xint <- NULL
-  
   return(fun.df)
 }

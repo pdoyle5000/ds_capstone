@@ -43,15 +43,64 @@ high.corr.market.df <- subset(market.corr, Freq > 0.5 | Freq < -0.5)
 
 ```{r univariateAnalysis}
 # normalize and visualize the fields independently here.
-
-
+log.price.close <- log(market.df$price.close)
+summary(log.price.close)
+summary(market.df$price.close)
+boxplot(market.df[,2:6])
 ```
 
 
 ```{r exploreSettlements}
 
 # Create charts that look at settlement amounts as functions of other things here
+settlement.df <- subset(market.df, settlement.pct > 0)
+plot(settlement.df$settlement.pct, settlement.df$price.trend)
+plot(settlement.df$settlement.pct, settlement.df$eps)
+plot(settlement.df$settlement.pct, settlement.df$price.close)
 
+### Maybe some of these values are HUGE outliers.  maybe we can plot two different variables with (settlement.pct * 10) + .5 as the size
+### CASH looks like it may be a rough commonality of companies that settle.  --eh, 628 companes have negative cash.
+
+
+
+# Draws square footage price comparison graphs using prefilterd data.
+library(ggplot2)
+settlement.chart <- ggplot(settlement.df, aes(x = settlement.pct, y = price.trend)) + 
+    geom_point(alpha = .8, size = 4, shape = 4, stroke = 2) + 
+    geom_line(method = 'lm',
+              stat = 'smooth',
+              color = "darkgreen",
+              size = 1.5,
+              alpha = .4,
+              se = TRUE,
+              fullrange=TRUE) +
+    theme_minimal() +
+    geom_text(aes(label=sprintf("%s-%i", settlement.df$tic, settlement.df$year)),hjust=-.2, vjust=-.6) +
+    scale_x_continuous(expand=c(0,0), limits=c(0,2)) +
+    ggtitle('Settlement Amount as % of Market Cap Vs Yearly Price Differential')
+settlement.chart
+
+rough.settlement.model <- lm(formula = settlement.pct ~ price.trend, data = settlement.df)
+sd(settlement.df$settlement.pct)
+
+dolby.df <- subset(market.df, tic == 'DLB')
+summary(rough.settlement.model)
+
+# This indicates that the better a company in this market does year over year, the larger the litigation settlement will be as a percentage of market capatalization.  This falls into line with the pressors MPL conjecture.
+
+
+# pct.settlement = 0.04(x) + 1.08379
+dlb.2010.settlement.pct <- (0.04 * dolby.df$price.trend[1]) + 1.08379
+dlb.2011.settlement.pct <- (0.04 * dolby.df$price.trend[2]) + 1.08379
+dlb.2012.settlement.pct <- (0.04 * dolby.df$price.trend[3]) + 1.08379
+
+dlb.2010.settlement.pct
+dlb.2011.settlement.pct
+dlb.2012.settlement.pct
+
+dolby.df$price.close[1] * dolby.df$shares.outstanding[1] * (dlb.2010.settlement.pct/100)
+dolby.df$price.close[2] * dolby.df$shares.outstanding[2] * (dlb.2011.settlement.pct/100)
+dolby.df$price.close[3] * dolby.df$shares.outstanding[3] * (dlb.2012.settlement.pct/100)
 ```
 
 
