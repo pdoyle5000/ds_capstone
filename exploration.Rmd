@@ -28,44 +28,138 @@ market.df <- import.market.data(
   fundamentals.path)
 summary(market.df)
 
-colSums(trimmed.market.df == 0)
-# ---- Correlation Analysis on Final DF and rename columns ------
-market.corr <- cor(trimmed.market.df[,2:29])
+colSums(market.df == 0)
+market.corr <- cor(market.df[,2:24])
 market.corr <- as.data.frame(as.table(market.corr))
-high.corr.market.df <- subset(market.corr, Freq > 0.5 | Freq < -0.5)
+high.corr.market.df <- subset(market.corr, Freq > 0.64 | Freq < -0.64)
 
-
-
-# --- Projection Trends and Visualizations for Litigation Amount -----
-# --- Chance of being litigated and correlating factors. -----
 ```
 
 
 ```{r univariateAnalysis}
-# normalize and visualize the fields independently here.
-log.price.close <- log(market.df$price.close)
-summary(log.price.close)
-summary(market.df$price.close)
-boxplot(market.df[,2:6])
-```
+library(gridExtra)
 
+shares.hist <- ggplot(data=market.df, aes(shares.outstanding)) + geom_histogram(binwidth = 10000000)
+log.shares.hist <- ggplot(data=market.df, aes(log(shares.outstanding))) + geom_histogram(binwidth = .5)
+
+cap.reserve.hist <- ggplot(data=market.df, aes(cap.reserve)) + geom_histogram(binwidth = 5000)
+log.cap.reserve.hist <- ggplot(data=market.df, aes(log(cap.reserve))) + geom_histogram(binwidth = .5)
+
+stock.hist <- ggplot(data=market.df, aes(common.stocks)) + geom_histogram(binwidth = 1000)
+log.stock.hist <- ggplot(data=market.df, aes(log(common.stocks))) + geom_histogram(binwidth = 1)
+
+tax.hist <- ggplot(data=market.df, aes(long.tax.asset)) + geom_histogram(binwidth = 100)
+log.tax.hist <- ggplot(data=market.df, aes(log(long.tax.asset))) + geom_histogram(binwidth = 1)
+
+grid.arrange(
+  shares.hist, log.shares.hist,
+  cap.reserve.hist, log.cap.reserve.hist,
+  stock.hist, log.stock.hist,
+  tax.hist, log.tax.hist, 
+  ncol=2, nrow=4)
+
+
+ggplot(data=market.df, aes(risk.free.rate)) + geom_histogram(binwidth = .25)
+
+
+
+for.analysis.df <- data.frame(
+  'acc.loss' = market.df$accu.loss,
+  'price.trend' = market.df$price.trend,
+  'company.rating' = market.df$company.rating,
+  'eps' = market.df$eps,
+  'log.shares' = log(market.df$shares.outstanding),
+  'cap.reserve' = ifelse(market.df$cap.reserve > 0, log(market.df$cap.reserve), 0),
+  'cash' = market.df$cash,
+  'log.common.stocks' = log(market.df$common.stocks + 0.1),
+  'other.finance' = market.df$finance.other,
+  'finance.cash.flow' = market.df$finance.cash.flow,
+  'other.funds' = market.df$other.funds,
+  'inventory.diff' = market.df$inventory.diff,
+  'investing.other' = market.df$investing.other,
+  'options.granted' = market.df$options.granted,
+  'risk.free.rate' = market.df$risk.free.rate,
+  'assumed.volatility' = market.df$assumed.volatility,
+  'sale.investments' = market.df$sale.investments,
+  'log.long.tax' = log(market.df$long.tax.asset + 0.1),
+  'net.tax.liability' = market.df$net.tax.liability,
+  'settlement.pct' = market.df$settlement.pct,
+  'market.valuation' = market.df$market.valuation,
+  'was.litigated' = as.factor(market.df$was.litigated)
+  #stringsAsFactors = FALSE
+)
+
+analysis.corr <- cor(for.analysis.df)
+analysis.corr <- as.data.frame(as.table(analysis.corr))
+high.canalysis.corr.df <- subset(analysis.corr, Freq > 0.64 | Freq < -0.64)
+
+
+table(for.analysis.df$was.litigated)
+
+
+
+sd.dev <- sd(for.analysis.df$was.litigated)
+
+
+table(for.analysis.df$was.litigated)
+
+p <- 22 / 1297
+n <- 1297
+serr <- sqrt((p*(1-p))/1297)
+
+low.bound <- p - (serr*1.96)
+high.bound <- p + (serr*1.96)
+c(low.bound * 100, high.bound * 100)
+
+write.csv(for.analysis.df, file = 'foranalysis.csv')
+```
+### Dimensionality Reduction
+```{r dimensionalityReduction}
+options(width = 600)
+library(pls)
+pr.out <- prcomp(for.analysis.df[,1:21], scale=T)
+names(pr.out)
+
+pr.out$center
+pr.out$scale
+pr.out$rotation
+
+dim(pr.out$x)
+biplot(pr.out, scale = 0)
+
+# flip the chart
+pr.out$rotation <- -pr.out$rotation
+pr.out$x <- -pr.out$x
+biplot(pr.out,scale = 0)
+
+pr.out$sdev
+pr.var <- pr.out$sdev^2
+pr.var
+
+# proportion of variance
+pve <- pr.var / sum(pr.var)
+pve
+
+plot(pve,
+     xlab = "Principal Component",
+     ylab = "Proportion of Variance Explained",
+     ylim = c(0,1),
+     type = 'b')
+
+plot(cumsum(pve),
+     xlab = "Principal Component",
+     ylab = "Cumulative of Variance Explained",
+     ylim = c(0,1),
+     type = 'b')
+
+## PCA shows that the top factors are market.valuation, eps, finance.cash.flow, price.trend, other.finance, cash, log.shares and net.tax liability. 
+```
 
 ```{r exploreSettlements}
 
-# Create charts that look at settlement amounts as functions of other things here
-settlement.df <- subset(market.df, settlement.pct > 0)
-plot(settlement.df$settlement.pct, settlement.df$price.trend)
-plot(settlement.df$settlement.pct, settlement.df$eps)
-plot(settlement.df$settlement.pct, settlement.df$price.close)
-
-### Maybe some of these values are HUGE outliers.  maybe we can plot two different variables with (settlement.pct * 10) + .5 as the size
-### CASH looks like it may be a rough commonality of companies that settle.  --eh, 628 companes have negative cash.
-
-
-
 # Draws square footage price comparison graphs using prefilterd data.
 library(ggplot2)
-settlement.chart <- ggplot(settlement.df, aes(x = settlement.pct, y = price.trend)) + 
+settlement.chart <- ggplot(settlement.df, aes(x = settlement.pct, y = trend.value)) + 
     geom_point(alpha = .8, size = 4, shape = 4, stroke = 2) + 
     geom_line(method = 'lm',
               stat = 'smooth',
@@ -81,6 +175,7 @@ settlement.chart <- ggplot(settlement.df, aes(x = settlement.pct, y = price.tren
 settlement.chart
 
 rough.settlement.model <- lm(formula = settlement.pct ~ price.trend, data = settlement.df)
+settlement.df$trend.value <- settlement.df$price.trend * settlement.df$shares.outstanding
 sd(settlement.df$settlement.pct)
 
 dolby.df <- subset(market.df, tic == 'DLB')
@@ -93,31 +188,54 @@ summary(rough.settlement.model)
 dlb.2010.settlement.pct <- (0.04 * dolby.df$price.trend[1]) + 1.08379
 dlb.2011.settlement.pct <- (0.04 * dolby.df$price.trend[2]) + 1.08379
 dlb.2012.settlement.pct <- (0.04 * dolby.df$price.trend[3]) + 1.08379
+dlb.2017.settlement.pct <- (0.04 * 14.12) + 1.08379
 
 dlb.2010.settlement.pct
 dlb.2011.settlement.pct
 dlb.2012.settlement.pct
 
-dolby.df$price.close[1] * dolby.df$shares.outstanding[1] * (dlb.2010.settlement.pct/100)
-dolby.df$price.close[2] * dolby.df$shares.outstanding[2] * (dlb.2011.settlement.pct/100)
-dolby.df$price.close[3] * dolby.df$shares.outstanding[3] * (dlb.2012.settlement.pct/100)
+dollars.2010 <- dolby.df$price.close[1] * dolby.df$shares.outstanding[1] * (dlb.2010.settlement.pct/100)
+dollars.2011 <- dolby.df$price.close[2] * dolby.df$shares.outstanding[2] * (dlb.2011.settlement.pct/100)
+dollars.2012 <- dolby.df$price.close[3] * dolby.df$shares.outstanding[3] * (dlb.2012.settlement.pct/100)
+dollars.2017 <- 6770000000 * (dlb.2017.settlement.pct/100)
+
+sprintf("A litigation of DLB in 2010 would have been %i dollars", round(dollars.2010))
+sprintf("A litigation of DLB in 2011 would have been %i dollars", round(dollars.2011))
+sprintf("A litigation of DLB in 2012 would have been %i dollars", round(dollars.2012))
 ```
 
 
 ```{r simpleLitigationModeling}
 # Attempt leave-one-out or lasso modeling on classification (possibly SVM!) of was.litigated
-
+library(boot)
+glm.fit <- glm(was.litigated ~ ., data = for.analysis.df)
+cv.err <- cv.glm(for.analysis.df, glm.fit)
+cv.err$delta
+glm.fit$coefficients
 ```
 
 
+```{r classificationTree}
+library(tree)
+tree.data <- for.analysis.df
+tree.data$settlement.pct <- NULL # does not make sense in this scope
+tree.data$eps <- NULL # high correlation with market.valuation
+tree.litigation <- tree(was.litigated ~ ., tree.data)
+plot(tree.litigation)
+text(tree.litigation, pretty=0)
 
+## Cross Validated Tree
+cv.data.tree <- cv.tree(tree.litigation, FUN=prune.misclass)
+names(cv.data.tree)
+cv.data.tree
 
+```
 
+```{r classificationRegression}
+glm.fits <- glm(was.litigated ~ ., data = tree.data, family = binomial)
 
-
-
-
-
+summary(glm.fits)
+```
 
 
 

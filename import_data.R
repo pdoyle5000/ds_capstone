@@ -180,6 +180,9 @@ clean.unified.data <- function(data.df) {
   trimmed.market.df <- subset(trimmed.market.df, !is.na(ajex))
   
   # NA value handling
+  trimmed.market.df$market.valuation <- trimmed.market.df$shares.outstanding * trimmed.market.df$price.close
+  trimmed.market.df$price.close <- NULL
+  #trimmed.market.df$shares.outstanding <- NULL
   trimmed.market.df$was.litigated[is.na(trimmed.market.df$was.litigated)] <- FALSE
   trimmed.market.df$settlement.pct[is.na(trimmed.market.df$settlement.pct)] <- FALSE
   trimmed.market.df$settlement[is.na(trimmed.market.df$settlement)] <- 0
@@ -207,9 +210,12 @@ format.unified.data <- function(unified.df) {
   unified.df$txdfo <- NULL
   unified.df$spcsrc <- NULL
   unified.df$exre <- NULL
-
+  unified.df$recch <- NULL
+  unified.df$re <- NULL
+  unified.df$aoloch <- NULL
+  unified.df$settlement <- NULL
   colnames(unified.df)[colnames(unified.df) == 'acominc'] <- 'accu.loss'
-  colnames(unified.df)[colnames(unified.df) == 'aoloch'] <- 'liability.delta'
+  # colnames(unified.df)[colnames(unified.df) == 'aoloch'] <- 'liability.delta'
   colnames(unified.df)[colnames(unified.df) == 'caps'] <- 'cap.reserve'
   colnames(unified.df)[colnames(unified.df) == 'chech'] <- 'cash'
   colnames(unified.df)[colnames(unified.df) == 'cstk'] <- 'common.stocks'
@@ -221,8 +227,6 @@ format.unified.data <- function(unified.df) {
   colnames(unified.df)[colnames(unified.df) == 'optgr'] <- 'options.granted'
   colnames(unified.df)[colnames(unified.df) == 'optrfr'] <- 'risk.free.rate'
   colnames(unified.df)[colnames(unified.df) == 'optvol'] <- 'assumed.volatility'
-  colnames(unified.df)[colnames(unified.df) == 're'] <- 'retained.earnings'
-  colnames(unified.df)[colnames(unified.df) == 'recch'] <- 'ar.diff'
   colnames(unified.df)[colnames(unified.df) == 'sppiv'] <- 'sale.investments'
   colnames(unified.df)[colnames(unified.df) == 'txdba'] <- 'long.tax.asset'
   colnames(unified.df)[colnames(unified.df) == 'txndb'] <- 'net.tax.liability'
