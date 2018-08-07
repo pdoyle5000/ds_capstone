@@ -9,22 +9,256 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Litigation Risk Analysis
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r normalizeData}
+analysis.df <- market.df
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+# % of Market Cap
+analysis.df$cash <- analysis.df$cash / analysis.df$market.cap
+analysis.df$liabilities.total <- analysis.df$liabilities.total / analysis.df$market.cap
+analysis.df$revenue.total <- analysis.df$revenue.total / analysis.df$market.cap
+analysis.df$assets.total <- analysis.df$assets.total / analysis.df$market.cap
+analysis.df$financing.net.cash.flow <- analysis.df$financing.net.cash.flow / analysis.df$market.cap
+analysis.df$gross.profit.loss <- analysis.df$gross.profit.loss / analysis.df$market.cap
+analysis.df$invested.capital <- analysis.df$invested.capital / analysis.df$market.cap
+analysis.df$working.capital <- analysis.df$working.capital / analysis.df$market.cap
+analysis.df$total.inventories <- analysis.df$total.inventories / analysis.df$market.cap
+analysis.df$net.income.loss <- analysis.df$net.income.loss / analysis.df$market.cap
+analysis.df$retained.earnings <- analysis.df$retained.earnings / analysis.df$market.cap
+analysis.df$retained.earnings.restatement <- analysis.df$retained.earnings.restatement / analysis.df$market.cap
+analysis.df$deffered.long.asset.tax <- analysis.df$deffered.long.asset.tax / analysis.df$market.cap
+analysis.df$net.deferred.tax.asset <- analysis.df$net.deferred.tax.asset / analysis.df$market.cap
 
-```{r cars}
-summary(cars)
+
+# Logarithms
+analysis.df$co.stock <- ifelse(analysis.df$co.stock > 0, log(analysis.df$co.stock), 0)
+analysis.df$trade.volume <- ifelse(analysis.df$trade.volume > 0, log(analysis.df$trade.volume), 0)
+analysis.df$market.cap <- ifelse(analysis.df$market.cap > 0, log(analysis.df$market.cap), 0)
+
+
+colSums(analysis.df == 0)
+summary(analysis.df)
+# write.csv(analysis.df, 'dataForAnalysis.csv')
+not.lit.df <- subset(analysis.df, was.litigated == FALSE)
+was.lit.df <- subset(analysis.df, was.litigated == TRUE)
+
 ```
 
-## Including Plots
+```{r differenceOfMeans}
 
-You can also embed plots, for example:
+# difference in means is not 0
+t.test(not.lit.df$assets.total, was.lit.df$assets.total)
+t.test(not.lit.df$shares.outstanding.common, was.lit.df$shares.outstanding.common)
+t.test(not.lit.df$revenue.total, was.lit.df$revenue.total)
+t.test(not.lit.df$trade.volume, was.lit.df$trade.volume)
+t.test(not.lit.df$stock.price.trend, was.lit.df$stock.price.trend)
+t.test(not.lit.df$market.cap, was.lit.df$market.cap)
+t.test(not.lit.df$earnings, was.lit.df$earnings)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+# difference in means is 0
+t.test(not.lit.df$cash, was.lit.df$cash)
+t.test(not.lit.df$liabilities.total, was.lit.df$liabilities.total)
+t.test(not.lit.df$co.stock, was.lit.df$co.stock)
+t.test(not.lit.df$financing.net.cash.flow, was.lit.df$financing.net.cash.flow)
+t.test(not.lit.df$volatility.assumption, was.lit.df$volatility.assumption)
+t.test(not.lit.df$risk.free.rate, was.lit.df$risk.free.rate)
+t.test(not.lit.df$working.capital, was.lit.df$working.capital)
+t.test(not.lit.df$eps, was.lit.df$eps)
+t.test(not.lit.df$price.close.monthly, was.lit.df$price.close.monthly)
+t.test(not.lit.df$quality.rating, was.lit.df$quality.rating)
+t.test(not.lit.df$mpl, was.lit.df$mpl)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+
+
+```{r classificatioModel}
+for.class.df <- analysis.df
+for.class.df$tic <- NULL
+for.class.df$year <- NULL
+for.class.df$settlement.dollars <- NULL
+for.class.df$settlement <- NULL
+for.class.df$retained.earnings.restatement <- NULL
+
+# Cash is representative of the following attributes:
+for.class.df$assets.total <- NULL
+for.class.df$liabilities.total <- NULL
+for.class.df$earnings <- NULL
+for.class.df$invested.capital <- NULL
+for.class.df$retained.earnings <- NULL
+for.class.df$total.inventories <- NULL
+for.class.df$deffered.long.asset.tax <- NULL
+for.class.df$gross.profit.loss <- NULL
+summary(for.class.df)
+
+
+market.corr <- as.data.frame(as.table(cor(for.class.df)))
+high.corr.market.df <- subset(market.corr, Freq > 0.64 | Freq < -0.64)
+for.class.df$was.litigated <- as.factor(for.class.df$was.litigated)
+
+# glm simple regression attempt.
+glm.fits <- glm(formula = was.litigated ~ trade.volume + eps + price.close.monthly, data = for.class.df, family=binomial)
+summary(glm.fits)
+
+glm.probs <- predict(glm.fits, type='response')
+glm.probs[1:10]
+contrasts(for.class.df$was.litigated)
+glm.pred <- rep(FALSE, 1452)
+glm.pred[glm.probs > .5] = TRUE
+table(glm.pred, for.class.df$was.litigated)
+
+
+```
+
+
+
+```{r treeModeling}
+library(tree)
+tree.data <- for.class.df
+tree.litigation <- tree(was.litigated ~ ., tree.data)
+plot(tree.litigation)
+text(tree.litigation, pretty=0)
+
+## Cross Validated Tree
+cv.data.tree <- cv.tree(tree.litigation, FUN=prune.misclass)
+names(cv.data.tree)
+cv.data.tree
+
+
+## Prune
+cv.order <- cv.tree(tree.litigation)
+plot(cv.order$size, cv.order$dev, type = 'b')
+prune.order <- prune.tree(tree.litigation, best = 14)
+summary(prune.order)
+plot(prune.order)
+text(prune.order, pretty = 0)
+```
+
+
+
+```{r modelSettlementAmount}
+settlement.df <- subset(analysis.df, settlement > 0)
+
+library(ggplot2)
+
+settlement.chart <- ggplot(settlement.df, aes(x = market.cap, y = settlement.dollars)) + 
+    geom_point(alpha = .8, size = 4, shape = 4, stroke = 2) + 
+    geom_line(method = 'lm',
+              stat = 'smooth',
+              color = "darkgreen",
+              size = 1.5,
+              alpha = .4,
+              se = TRUE,
+              fullrange=TRUE) +
+    theme_minimal() +
+    geom_text(aes(label=sprintf("%s-%i", settlement.df$tic, settlement.df$year)),hjust=-.2, vjust=-.6) +
+    #scale_x_continuous(expand=c(0,0), limits=c(0,2))
+    ggtitle('Settlement Dollars as a function of Market Cap')
+settlement.chart
+
+
+settlement.chart <- ggplot(settlement.df, aes(x = volatility.assumption, y = settlement)) + 
+    geom_point(alpha = .8, size = 4, shape = 4, stroke = 2) + 
+    geom_line(method = 'lm',
+              stat = 'smooth',
+              color = "darkgreen",
+              size = 1.5,
+              alpha = .4,
+              se = TRUE,
+              fullrange=TRUE) +
+    theme_minimal() +
+    geom_text(aes(label=sprintf("%s-%i", settlement.df$tic, settlement.df$year)),hjust=-.2, vjust=-.6) #+
+    #scale_x_continuous(expand=c(0,0), limits=c(0,2))
+    #ggtitle('Settlement Amount as % of Market Cap Vs BLANKKK')
+settlement.chart
+
+settlement.chart <- ggplot(settlement.df, aes(x = stock.price.trend, y = settlement)) + 
+    geom_point(alpha = .8, size = 4, shape = 4, stroke = 2) + 
+    geom_line(method = 'lm',
+              stat = 'smooth',
+              color = "darkgreen",
+              size = 1.5,
+              alpha = .4,
+              se = TRUE,
+              fullrange=TRUE) +
+    theme_minimal() +
+    geom_text(aes(label=sprintf("%s-%i", settlement.df$tic, settlement.df$year)),hjust=-.2, vjust=-.6) #+
+    #scale_x_continuous(expand=c(0,0), limits=c(0,2))
+    #ggtitle('Settlement Amount as % of Market Cap Vs BLANKKK')
+settlement.chart
+
+settlement.chart <- ggplot(settlement.df, aes(x = trade.volume, y = settlement)) + 
+    geom_point(alpha = .8, size = 4, shape = 4, stroke = 2) + 
+    geom_line(method = 'lm',
+              stat = 'smooth',
+              color = "darkgreen",
+              size = 1.5,
+              alpha = .4,
+              se = TRUE,
+              fullrange=TRUE) +
+    theme_minimal() +
+    geom_text(aes(label=sprintf("%s-%i", settlement.df$tic, settlement.df$year)),hjust=-.2, vjust=-.6) #+
+    #scale_x_continuous(expand=c(0,0), limits=c(0,2))
+    #ggtitle('Settlement Amount as % of Market Cap Vs BLANKKK')
+settlement.chart
+
+
+settlement.chart <- ggplot(settlement.df, aes(x = eps, y = settlement)) + 
+    geom_point(alpha = .8, size = 4, shape = 4, stroke = 2) + 
+    geom_line(method = 'lm',
+              stat = 'smooth',
+              color = "darkgreen",
+              size = 1.5,
+              alpha = .4,
+              se = TRUE,
+              fullrange=TRUE) +
+    theme_minimal() +
+    geom_text(aes(label=sprintf("%s-%i", settlement.df$tic, settlement.df$year)),hjust=-.2, vjust=-.6) +
+    scale_x_continuous(expand=c(0,0), limits=c(-2,5)) + 
+    ggtitle('Settlement (% of market-cap) vs EPS (% of market-cap)')
+
+
+sd(settlement.df$settlement)
+summary(settlement.df$settlement)
+settlement.chart
+```
+
+```{r predictDLB}
+rough.settlement.model <- lm(formula = settlement ~ eps, data = settlement.df)
+
+dolby.df <- subset(market.df, tic == 'DLB')
+summary(rough.settlement.model)
+
+# This indicates that the better a company in this market does year over year, the larger the litigation settlement will be as a percentage of market capatalization.  This falls into line with the pressors MPL conjecture.
+
+
+# pct.settlement = -0.001962(eps) + 0.010042
+dlb.2010.settlement.pct <- (-0.001962 * dolby.df$eps[1]) + 0.010042
+dlb.2011.settlement.pct <- (-0.001962 * dolby.df$eps[2]) + 0.010042
+dlb.2012.settlement.pct <- (-0.001962 * dolby.df$eps[3]) + 0.010042
+dlb.2013.settlement.pct <- (-0.001962 * dolby.df$eps[4]) + 0.010042
+
+dlb.2010.settlement.pct
+dlb.2011.settlement.pct
+dlb.2012.settlement.pct
+dlb.2013.settlement.pct
+
+dollars.2010 <- dolby.df$price.close.monthly[1] * 1000000 * dolby.df$shares.outstanding.common[1] * (dlb.2010.settlement.pct)
+dollars.2011 <- dolby.df$price.close.monthly[2] * 1000000 * dolby.df$shares.outstanding.common[2] * (dlb.2011.settlement.pct)
+dollars.2012 <- dolby.df$price.close.monthly[3] * 1000000 * dolby.df$shares.outstanding.common[3] * (dlb.2012.settlement.pct)
+dollars.2013 <- dolby.df$price.close.monthly[4] * 1000000 * dolby.df$shares.outstanding.common[4] * (dlb.2013.settlement.pct)
+
+
+sprintf("A litigation of DLB in 2010 would have been %i dollars", round(dollars.2010))
+sprintf("A litigation of DLB in 2011 would have been %i dollars", round(dollars.2011))
+sprintf("A litigation of DLB in 2012 would have been %i dollars", round(dollars.2012))
+sprintf("A litigation of DLB in 2013 would have been %i dollars", round(dollars.2013))
+```
+
+
+
+
+
