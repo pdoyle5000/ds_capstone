@@ -9,9 +9,12 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Litigation Risk Analysis
+# Litigation Risk Analysis
 
+## Normalize for Analysis
 ```{r normalizeData}
+
+## Run the data import function in exploration.Rmd first.
 analysis.df <- market.df
 
 # % of Market Cap
@@ -45,9 +48,11 @@ was.lit.df <- subset(analysis.df, was.litigated == TRUE)
 
 ```
 
+
+## Difference of means T-Test (litigated vs not-litigated)
 ```{r differenceOfMeans}
 
-# difference in means is not 0
+# difference in mean: 95% interval does not contain 0
 t.test(not.lit.df$assets.total, was.lit.df$assets.total)
 t.test(not.lit.df$shares.outstanding.common, was.lit.df$shares.outstanding.common)
 t.test(not.lit.df$revenue.total, was.lit.df$revenue.total)
@@ -56,7 +61,7 @@ t.test(not.lit.df$stock.price.trend, was.lit.df$stock.price.trend)
 t.test(not.lit.df$market.cap, was.lit.df$market.cap)
 t.test(not.lit.df$earnings, was.lit.df$earnings)
 
-# difference in means is 0
+# difference in mean: 95% interval does contain 0
 t.test(not.lit.df$cash, was.lit.df$cash)
 t.test(not.lit.df$liabilities.total, was.lit.df$liabilities.total)
 t.test(not.lit.df$co.stock, was.lit.df$co.stock)
@@ -71,10 +76,7 @@ t.test(not.lit.df$mpl, was.lit.df$mpl)
 ```
 
 
-
-
-
-
+## Linear Regression - Classification
 ```{r classificatioModel}
 for.class.df <- analysis.df
 for.class.df$tic <- NULL
@@ -94,7 +96,7 @@ for.class.df$deffered.long.asset.tax <- NULL
 for.class.df$gross.profit.loss <- NULL
 summary(for.class.df)
 
-
+# Verify lack of correlation among remaining attributes
 market.corr <- as.data.frame(as.table(cor(for.class.df)))
 high.corr.market.df <- subset(market.corr, Freq > 0.64 | Freq < -0.64)
 for.class.df$was.litigated <- as.factor(for.class.df$was.litigated)
@@ -114,7 +116,7 @@ table(glm.pred, for.class.df$was.litigated)
 ```
 
 
-
+## Classification Trees - Simple, Pruned, Cross-Validated
 ```{r treeModeling}
 library(tree)
 tree.data <- for.class.df
@@ -138,7 +140,7 @@ text(prune.order, pretty = 0)
 ```
 
 
-
+## Settlement Severety Visualization Analysis
 ```{r modelSettlementAmount}
 settlement.df <- subset(analysis.df, settlement > 0)
 
@@ -226,6 +228,8 @@ summary(settlement.df$settlement)
 settlement.chart
 ```
 
+
+## Dolby Digital Settlement Severity Predictions
 ```{r predictDLB}
 rough.settlement.model <- lm(formula = settlement ~ eps, data = settlement.df)
 

@@ -2,6 +2,9 @@
 library(dplyr)
 library(lubridate)
 
+# Main function that imports, cleans and joins the five data GICS 45 datasets.
+# Inputs: the five paths to the raw files.
+# Output: Data frame containing unified, clean data.
 import.market.data <- function(securities.path, 
                                ratings.path, 
                                stocks.path, 
@@ -10,25 +13,24 @@ import.market.data <- function(securities.path,
   fundamentals.df <- etl.fundamentals(read.csv(fundamentals.path, sep = ','))
   ratings.df <- etl.ratings(read.csv(ratings.path, sep = ','))
   
-  ## COMMENTED OUT FOR SPEED FOR NOW
-  stocks.df <- etl.stocks(read.csv(stocks.path, sep = '\t', header = T, fileEncoding = 'UTF-16LE'), securities.path)
-  ## --------------------------- etl.stocks takes a very long time.
-  
-  
-  stocks1.df <- unified.stocks.df
+  # This one function can take 20+ minutes to run.  stocks data is very large
+  stocks.df <- etl.stocks(
+    read.csv(stocks.path, sep = '\t', header = T, fileEncoding = 'UTF-16LE'), securities.path)
   sca.df <- etl.sca(read.csv(sca.path, sep = ','), fundamentals.df$tic)
-  
-  unified.df <- join.dfs(fundamentals.df, ratings.df, stocks1.df, sca.df)
-  
-  
+  unified.df <- join.dfs(fundamentals.df, ratings.df, stocks.df, sca.df)
+
+  # remove unnecessary fields
   unified.df$data.month <- NULL
   unified.df$eps.basic <- NULL
-  unified.df$market.cap <- unified.df$price.close.monthly * unified.df$shares.outstanding.common
-  unified.df$settlement.dollars <- unified.df$settlement
   
+  # trim orgs with empty data
   unified.df <- subset(unified.df, shares.outstanding.common > 0)
   unified.df <- subset(unified.df, tic != 'MTRO')
   unified.df <- subset(unified.df, tic != 'VOLT')
+  
+  # create new fields
+  unified.df$market.cap <- unified.df$price.close.monthly * unified.df$shares.outstanding.common
+  unified.df$settlement.dollars <- unified.df$settlement
   unified.df$settlement <- ((unified.df$settlement * .000001) / unified.df$market.cap)
   unified.df$mpl <- abs((unified.df$stock.price.trend * unified.df$shares.outstanding.common) / unified.df$market.cap)
   unified.df$earnings <- abs((unified.df$eps * unified.df$shares.outstanding.common) / unified.df$market.cap)
@@ -36,6 +38,11 @@ import.market.data <- function(securities.path,
   return(unified.df)
 }
 
+
+# Left joins four data frames to the first argument.
+# Inputs: four data frames containing fields for tic and year.
+# Output: Joined GICS 45 data with bad records trimmed out and
+#         quality increasing measures applied to redundant fields.
 join.dfs <- function(df1, df2, df3, df4) {
   total.df <- df1 %>% left_join(df2, by=c('tic', 'year')) %>% 
            left_join(df3, by=c('tic', 'year')) %>% 
@@ -45,6 +52,7 @@ join.dfs <- function(df1, df2, df3, df4) {
   total.df$company.rating[is.na(total.df$company.rating)] <- 0
   total.df$quality.ranking[is.na(total.df$quality.ranking)] <- 0
   
+  # combine ratings from different datasets into one column
   total.df$quality.rating <- total.df$company.rating
   total.df$quality.rating <- ifelse(total.df$quality.rating == 0, total.df$fundamentals.rating, total.df$quality.ranking)
 
@@ -69,6 +77,9 @@ join.dfs <- function(df1, df2, df3, df4) {
   return(total.df)
 }
 
+# Import ratings data set.
+# Input: raw ratings dataframe
+# Output: data frame containing tic, year and rating aggregated by year.
 etl.ratings <- function(ratings.df) {
   trimmed.ratings.df <- data.frame(
     'tic' =            as.character(ratings.df$tic),
@@ -86,6 +97,10 @@ etl.ratings <- function(ratings.df) {
   return(yearly.ratings.df)
 }
 
+
+# converts letter based rating systems to number style GPA.
+# Input: list of letter based ratings
+# Output: list of number based ratings
 determine.rating.score <- function(ratings) {
   scores <- c()
   for(rating in ratings) {
@@ -113,6 +128,12 @@ determine.rating.score <- function(ratings) {
   return(scores)
 }
 
+
+# Import monthly securities information data file
+# Input: raw securities dataframe
+# Output: data frame containing data aggrgated by year 
+#         for average monthly trade volume and average 
+#         monthly closing price.
 etl.securities <- function(securities.df) {
   securities.df <- transform.null.values.securities(securities.df)
   trimmed.df <- data.frame(
@@ -137,7 +158,10 @@ transform.null.values.securities <- function(securities.df) {
 }
 
 
-
+# Transforms the daily stocks data set and the monthly securities data set
+# into a unified data frame with increased quality for fields shared between the sets.
+# Inputs: stocks data frame, path to raw securities csv.
+# Output:  unified yearly aggregated dataframe containing stock information.
 etl.stocks <- function(stocks.df, securities.path) {
   trimmed.df <- data.frame(
     "tic" =                 as.character(stocks.df$tic),
@@ -151,17 +175,21 @@ etl.stocks <- function(stocks.df, securities.path) {
     stringsAsFactors=FALSE)
   
   trimmed.df[(is.na(trimmed.df))] <- 0
-  monthly.stock.df <- trimmed.df %>% group_by(tic, year, data.month) %>% summarize(mean.current.eps = mean(as.numeric(current.eps)),
-                                                                                   mean.shares.outstanding = mean(as.numeric(shares.outstanding)),
-                                                                                   mean.quality.ranking = mean(as.numeric(quality.ranking)),
-                                                                                   trading.volume = sum(as.numeric(trade.volume)),
-                                                                                   prccm = mean(as.numeric(closing.price)))
+  monthly.stock.df <- trimmed.df %>% 
+    group_by(tic, year, data.month) %>% 
+    summarize(mean.current.eps = mean(as.numeric(current.eps)),
+              mean.shares.outstanding = mean(as.numeric(shares.outstanding)),
+              mean.quality.ranking = mean(as.numeric(quality.ranking)),
+              trading.volume = sum(as.numeric(trade.volume)),
+              prccm = mean(as.numeric(closing.price)))
   
-  yearly.stock.df <- monthly.stock.df %>% group_by(tic, year) %>% summarize(current.eps.stock = mean(as.numeric(mean.current.eps)),
-                                                                            shares.outstanding.stock = mean(as.numeric(mean.shares.outstanding)),
-                                                                            quality.ranking.stock = mean(as.numeric(mean.quality.ranking)),
-                                                                            trading.volume.stock = sum(as.numeric(trading.volume)),
-                                                                            prccm = mean(as.numeric(prccm)))
+  yearly.stock.df <- monthly.stock.df %>% 
+    group_by(tic, year) %>% 
+    summarize(current.eps.stock = mean(as.numeric(mean.current.eps)),
+              shares.outstanding.stock = mean(as.numeric(mean.shares.outstanding)),
+              quality.ranking.stock = mean(as.numeric(mean.quality.ranking)),
+              trading.volume.stock = sum(as.numeric(trading.volume)),
+              prccm = mean(as.numeric(prccm)))
   
   yearly.w.trends.df <- calc.trends.stocks(yearly.stock.df, monthly.stock.df)
   sec.w.trends.df <- etl.securities(read.csv(securities.path, sep = ','))
@@ -184,6 +212,9 @@ etl.stocks <- function(stocks.df, securities.path) {
 }
 
 
+# Calculates the price trend for a year (final month closing price - first month closing price)
+# Inputs: yearly and monthly aggregated securities dataframe
+# Output: Input yearly dataframe with a price.trend column added.
 calc.trends <- function(yearly.df, monthly.df) {
   yearly.df[, 'price.trend'] <- NA
   for(row in 1:nrow(yearly.df)) {
@@ -199,6 +230,10 @@ calc.trends <- function(yearly.df, monthly.df) {
   return(yearly.df)
 }
 
+
+# Calculates the price trend for a year (final month closing price - first month closing price)
+# Inputs: yearly and monthly aggregated stocks dataframe
+# Output: Input yearly dataframe with a price.trend column added.
 calc.trends.stocks <- function(yearly.df, monthly.df) {
   yearly.df[, 'price.trend.stock'] <- NA
   for(row in 1:nrow(yearly.df)) {
@@ -214,6 +249,11 @@ calc.trends.stocks <- function(yearly.df, monthly.df) {
   return(yearly.df)
 }
 
+
+# Imports the class action litigations data sheet
+# Inputs: litigations raw dataframe and list of organizations to filter on.
+# Outputs: litigation dataframe with converted litigation status and
+#          companies not in the companies list filtered out.
 etl.sca <- function(sca.df, companies) {
   sca.df$Ticker <- as.character(sca.df$Ticker)
   filtered.df <- sca.df[sca.df$Ticker %in% companies,]
@@ -230,6 +270,9 @@ etl.sca <- function(sca.df, companies) {
   return(trimmed.added.data.df)
 }
 
+# add new information from Stanford SCA database to imported data.
+# Input: litigation dataframe
+# Output: litigation dataframe with updated information
 add.new.sca.data <- function(sca.df) {
   sca.df$search <- paste(sca.df$tic, sca.df$year, sep="-")
   sca.df$settlement[match('DBD-2010', sca.df$search)] <- 31600000
@@ -245,6 +288,8 @@ add.new.sca.data <- function(sca.df) {
   sca.df$settlement[match('SIHI-2012', sca.df$search)] <- 600000
   sca.df$settlement[match('UBNT-2012', sca.df$search)] <- 6800000
   sca.df$settlement[match('VMEM-2013', sca.df$search)] <- 7500000
+  
+  # Still ONGOING
   sca.df <- subset(sca.df, search != 'ICXT-2010')
   sca.df <- subset(sca.df, search != 'DELL-2014')
   sca.df <- subset(sca.df, search != 'DELL-2006')
@@ -254,6 +299,10 @@ add.new.sca.data <- function(sca.df) {
   return(sca.df)
 }
 
+
+# Convert SEC 10-K data file into a cleaned dataframe primed for joining.
+# Input: raw fundamentals dataframe
+# Output: Clean Dataframe containing fields of interest.
 etl.fundamentals <- function(raw.df) {
   fund.df <- subset(raw.df, datafmt == 'STD')
   fund.df <- subset(fund.df, !is.na(aco))

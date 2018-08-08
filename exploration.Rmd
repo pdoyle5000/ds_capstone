@@ -14,7 +14,7 @@ litigations.path <- 'data/sca_filings_no_dollars.csv'
 fundamentals.path <- 'data/Fundamentals_DLB.csv'
 ```
 
-## Dolby 
+## Generate Unified Dataset for GICS 45 Analysis
 ```{r transformInputData}
 source('import_data.R')
 market.df <- import.market.data(
